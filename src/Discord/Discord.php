@@ -90,7 +90,7 @@ class Discord
      *
      * @var string Version.
      */
-    const VERSION = 'v5.0.10';
+    const VERSION = 'v5.0.11';
 
     /**
      * The logger.
@@ -1358,6 +1358,29 @@ class Discord
         }
 
         $this->client->{$name} = $value;
+    }
+
+    /**
+     *
+     * Gets a channel.
+     *
+     * @param string|int $channel_id Id of the channel.
+     *
+     * @return Channel
+     */
+    public function getChannel($channel_id): ?Channel
+    {
+        foreach ($this->guilds as $guild) {
+            if ($channel = $guild->channels->get('id', $channel_id)) {
+                return $channel;
+            }
+        }
+
+        if ($channel = $this->private_channels->get('id', $channel_id)) {
+            return $channel;
+        }
+
+        return null;
     }
 
     /**
