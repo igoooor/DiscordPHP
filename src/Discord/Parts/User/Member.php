@@ -21,8 +21,8 @@ use Discord\Parts\Guild\Role;
 use Discord\Parts\Part;
 use Discord\Parts\Permissions\RolePermission;
 use Discord\Parts\WebSockets\PresenceUpdate;
-use React\Promise\Deferred;
-use React\Promise\PromiseInterface;
+use Discord\Helpers\Deferred;
+use React\Promise\ExtendedPromiseInterface;
 use function React\Partial\bind as Bind;
 
 /**
@@ -79,23 +79,28 @@ class Member extends Part
     /**
      * Bans the member.
      *
-     * @param int|null $daysToDeleteMessasges The amount of days to delete messages from.
+     * @param int|null    $daysToDeleteMessages The amount of days to delete messages from.
+     * @param string|null $reason
      *
-     * @return PromiseInterface
+     * @return ExtendedPromiseInterface
      * @throws \Exception
      */
-    public function ban(?int $daysToDeleteMessasges = null): PromiseInterface
+    public function ban(?int $daysToDeleteMessages = null, ?string $reason = null): ExtendedPromiseInterface
     {
         $deferred = new Deferred();
         $content = [];
 
         $url = $this->replaceWithVariables('guilds/:guild_id/bans/:id');
 
-        if (! is_null($daysToDeleteMessasges)) {
-            $content['delete_message_days'] = $daysToDeleteMessasges;
+        if (! is_null($daysToDeleteMessages)) {
+            $content['delete_message_days'] = $daysToDeleteMessages;
         }
 
-        $this->http->put($url, $content)->then(
+        if (! is_null($reason)) {
+            $content['reason'] = $reason;
+        }
+
+        $this->http->put($url, empty($content) ? null : $content)->done(
             function () use ($deferred) {
                 $ban = $this->factory->create(Ban::class, [
                     'user' => $this->attributes['user'],
@@ -115,9 +120,9 @@ class Member extends Part
      *
      * @param string|null $nick The nickname of the member.
      *
-     * @return PromiseInterface
+     * @return ExtendedPromiseInterface
      */
-    public function setNickname(?string $nick = null): PromiseInterface
+    public function setNickname(?string $nick = null): ExtendedPromiseInterface
     {
         $deferred = new Deferred();
 
@@ -133,7 +138,7 @@ class Member extends Part
             $promise = $this->http->patch("guilds/{$this->guild_id}/members/{$this->id}", $payload);
         }
 
-        $promise->then(
+        $promise->done(
             Bind([$deferred, 'resolve']),
             Bind([$deferred, 'reject'])
         );
@@ -146,9 +151,9 @@ class Member extends Part
      *
      * @param Channel|int $channel The channel to move the member to.
      *
-     * @return PromiseInterface
+     * @return ExtendedPromiseInterface
      */
-    public function moveMember($channel): PromiseInterface
+    public function moveMember($channel): ExtendedPromiseInterface
     {
         $deferred = new Deferred();
 
@@ -161,7 +166,7 @@ class Member extends Part
             [
                 'channel_id' => $channel,
             ]
-        )->then(function () use ($deferred) {
+        )->done(function () use ($deferred) {
             $deferred->resolve();
         }, Bind([$deferred, 'reject']));
 
@@ -176,9 +181,9 @@ class Member extends Part
      *
      * @param Role|int $role The role to add to the member.
      *
-     * @return PromiseInterface
+     * @return ExtendedPromiseInterface
      */
-    public function addRole($role): PromiseInterface
+    public function addRole($role): ExtendedPromiseInterface
     {
         $deferred = new Deferred();
 
@@ -192,7 +197,7 @@ class Member extends Part
         } else {
             $this->http->put(
                 "guilds/{$this->guild_id}/members/{$this->id}/roles/{$role}"
-            )->then(function () use ($role, $deferred) {
+            )->done(function () use ($role, $deferred) {
                 $this->attributes['roles'][] = $role;
                 $deferred->resolve();
             }, Bind([$deferred, 'reject']));
@@ -206,9 +211,9 @@ class Member extends Part
      *
      * @param Role|int $role The role to remove from the member.
      *
-     * @return PromiseInterface
+     * @return ExtendedPromiseInterface
      */
-    public function removeRole($role): PromiseInterface
+    public function removeRole($role): ExtendedPromiseInterface
     {
         $deferred = new Deferred();
 
@@ -219,7 +224,7 @@ class Member extends Part
         if (false !== ($index = array_search($role, $this->attributes['roles']))) {
             $this->http->delete(
                 "guilds/{$this->guild_id}/members/{$this->id}/roles/{$role}"
-            )->then(function () use ($index, $deferred) {
+            )->done(function () use ($index, $deferred) {
                 unset($this->attributes['roles'][$index]);
                 $deferred->resolve();
             }, Bind([$deferred, 'reject']));
@@ -302,7 +307,7 @@ class Member extends Part
         }
 
         foreach ($this->attributes['activities'] as $activity) {
-            $activities->push($this->factory->create(Activity::class, (array) $activity, true));
+            $activities->push($this->factory->create(Activity::class, $activity, true));
         }
 
         return $activities;
@@ -356,9 +361,9 @@ class Member extends Part
     /**
      * Returns the guild attribute.
      *
-     * @return Guild The guild.
+     * @return null|Guild The guild.
      */
-    protected function getGuildAttribute(): Guild
+    protected function getGuildAttribute(): ?Guild
     {
         return $this->discord->guilds->get('id', $this->guild_id);
     }
@@ -381,7 +386,7 @@ class Member extends Part
             }
         } else {
             foreach ($this->attributes['roles'] as $role) {
-                $roles->push($this->factory->create(Role::class, (array) $role, true));
+                $roles->push($this->factory->create(Role::class, $role, true));
             }
         }
 

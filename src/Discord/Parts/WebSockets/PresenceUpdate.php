@@ -11,6 +11,7 @@
 
 namespace Discord\Parts\WebSockets;
 
+use Carbon\Carbon;
 use Discord\Helpers\Collection;
 use Discord\Parts\Guild\Guild;
 use Discord\Parts\Part;
@@ -79,7 +80,7 @@ class PresenceUpdate extends Part
             return $user;
         }
 
-        return $this->factory->create(User::class, (array) $this->attributes['user'], true);
+        return $this->factory->create(User::class, $this->attributes['user'], true);
     }
 
     /**
@@ -87,7 +88,7 @@ class PresenceUpdate extends Part
      *
      * @return Guild The guild that the user was in.
      */
-    protected function getGuildAttribute(): Guild
+    protected function getGuildAttribute(): ?Guild
     {
         return $this->discord->guilds->get('id', $this->guild_id);
     }
@@ -100,5 +101,19 @@ class PresenceUpdate extends Part
     protected function getGameAttribute(): ?Activity
     {
         return $this->activities->first();
+    }
+
+    /**
+     * Gets the premium since timestamp.
+     *
+     * @return Carbon|null
+     */
+    protected function getPremiumSinceAttribute(): ?Carbon
+    {
+        if (! isset($this->attributes['premium_since'])) {
+            return null;
+        }
+
+        return Carbon::parse($this->attributes['premium_since']);
     }
 }

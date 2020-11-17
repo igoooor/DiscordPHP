@@ -12,7 +12,7 @@
 namespace Discord\WebSockets\Events;
 
 use Discord\WebSockets\Event;
-use React\Promise\Deferred;
+use Discord\Helpers\Deferred;
 
 class ChannelPinsUpdate extends Event
 {
@@ -21,6 +21,7 @@ class ChannelPinsUpdate extends Event
      */
     public function handle(Deferred &$deferred, $data): void
     {
-        //wip
+        // TODO
+        $deferred->resolve($data);
     }
 }

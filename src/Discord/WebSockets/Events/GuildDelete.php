@@ -13,7 +13,7 @@ namespace Discord\WebSockets\Events;
 
 use Discord\Parts\Guild\Guild;
 use Discord\WebSockets\Event;
-use React\Promise\Deferred;
+use Discord\Helpers\Deferred;
 
 class GuildDelete extends Event
 {
@@ -22,10 +22,14 @@ class GuildDelete extends Event
      */
     public function handle(Deferred &$deferred, $data): void
     {
-        $guild = $this->factory->create(Guild::class, (array) $data, true);
+        $guild = $this->discord->guilds->get('id', $data->id);
+
+        if (! $guild) {
+            $guild = $this->factory->create(Guild::class, $data, true);
+        }
 
         $this->discord->guilds->pull($guild->id);
 
-        $deferred->resolve($guild);
+        $deferred->resolve([$guild, $data->unavailable ?? false]);
     }
 }

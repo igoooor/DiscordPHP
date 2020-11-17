@@ -11,15 +11,12 @@
 
 namespace Discord\Repository;
 
-use ArrayAccess;
-use Countable;
-use IteratorAggregate;
 use Discord\Factory\Factory;
 use Discord\Helpers\Collection;
 use Discord\Http\Http;
 use Discord\Parts\Part;
-use React\Promise\Deferred;
-use React\Promise\PromiseInterface;
+use Discord\Helpers\Deferred;
+use React\Promise\ExtendedPromiseInterface;
 use function React\Promise\reject as Reject;
 use function React\Promise\resolve as Resolve;
 
@@ -84,10 +81,10 @@ abstract class AbstractRepository extends Collection
     /**
      * Freshens the repository collection.
      *
-     * @return PromiseInterface
+     * @return ExtendedPromiseInterface
      * @throws \Exception
      */
-    public function freshen(): PromiseInterface
+    public function freshen(): ExtendedPromiseInterface
     {
         if (! isset($this->endpoints['all'])) {
             return Reject(new \Exception('You cannot freshen this repository.'));
@@ -102,7 +99,7 @@ abstract class AbstractRepository extends Collection
             null,
             [],
             false
-        )->then(function ($response) use ($deferred) {
+        )->done(function ($response) use ($deferred) {
             $this->fill([]);
 
             foreach ($response as $value) {
@@ -140,10 +137,10 @@ abstract class AbstractRepository extends Collection
      *
      * @param Part $part The part to save.
      *
-     * @return PromiseInterface
+     * @return ExtendedPromiseInterface
      * @throws \Exception
      */
-    public function save(Part $part): PromiseInterface
+    public function save(Part $part): ExtendedPromiseInterface
     {
         if ($part->created) {
             $method = 'patch';
@@ -168,7 +165,7 @@ abstract class AbstractRepository extends Collection
         $this->http->{$method}(
             $endpoint,
             $attributes
-        )->then(function ($response) use ($deferred, &$part, $method) {
+        )->done(function ($response) use ($deferred, &$part, $method) {
             $part->fill((array) $response);
             $part->created = true;
             $part->deleted = false;
@@ -187,10 +184,10 @@ abstract class AbstractRepository extends Collection
      *
      * @param Part|snowflake $part The part to delete.
      *
-     * @return PromiseInterface
+     * @return ExtendedPromiseInterface
      * @throws \Exception
      */
-    public function delete($part): PromiseInterface
+    public function delete($part): ExtendedPromiseInterface
     {
         if (! ($part instanceof Part)) {
             $part = $this->factory->part($this->class, ['id' => $part], true);
@@ -212,7 +209,7 @@ abstract class AbstractRepository extends Collection
                     $this->endpoints['delete']
                 )
             )
-        )->then(function ($response) use ($deferred, &$part) {
+        )->done(function ($response) use ($deferred, &$part) {
             $part->created = false;
 
             $deferred->resolve($part);
@@ -228,10 +225,10 @@ abstract class AbstractRepository extends Collection
      *
      * @param Part $part The part to get fresh values.
      *
-     * @return PromiseInterface
+     * @return ExtendedPromiseInterface
      * @throws \Exception
      */
-    public function fresh(Part $part): PromiseInterface
+    public function fresh(Part $part): ExtendedPromiseInterface
     {
         if (! $part->created) {
             return Reject(new \Exception('You cannot get a non-existant part.'));
@@ -249,7 +246,7 @@ abstract class AbstractRepository extends Collection
                     $this->endpoints['get']
                 )
             )
-        )->then(function ($response) use ($deferred, &$part) {
+        )->done(function ($response) use ($deferred, &$part) {
             $part->fill((array) $response);
 
             $deferred->resolve($part);
@@ -264,13 +261,14 @@ abstract class AbstractRepository extends Collection
      * Force gets a part from the Discord servers.
      *
      * @param string $id The ID to search for.
+     * @param bool $fresh Whether we should skip checking the cache.
      *
-     * @return PromiseInterface
+     * @return ExtendedPromiseInterface
      * @throws \Exception
      */
-    public function fetch(string $id): PromiseInterface
+    public function fetch(string $id, bool $fresh = false): ExtendedPromiseInterface
     {
-        if ($part = $this->get('id', $id)) {
+        if (! $fresh && $part = $this->get('id', $id)) {
             return Resolve($part);
         }
 
@@ -284,8 +282,8 @@ abstract class AbstractRepository extends Collection
             $this->replaceWithVariables(
                 str_replace(':id', $id, $this->endpoints['get'])
             )
-        )->then(function ($response) use ($deferred) {
-            $part = $this->factory->create($this->class, (array) $response, true);
+        )->done(function ($response) use ($deferred) {
+            $part = $this->factory->create($this->class, array_merge($this->vars, (array) $response), true);
 
             $deferred->resolve($part);
         }, function ($e) use ($deferred) {
