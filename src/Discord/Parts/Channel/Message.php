@@ -74,6 +74,7 @@ class Message extends Part
     const CHANNEL_FOLLOW_ADD = 12;
     const GUILD_DISCOVERY_DISQUALIFIED = 14;
     const GUILD_DISCOVERY_REQUALIFIED = 15;
+    const TYPE_REPLY = 19;
 
     const ACTIVITY_JOIN = 1;
     const ACTIVITY_SPECTATE = 2;
