@@ -75,7 +75,7 @@ abstract class AbstractRepository extends Collection
         $this->factory = $factory;
         $this->vars = $vars;
 
-        parent::__construct();
+        parent::__construct([], $this->discrim, $this->class);
     }
 
     /**
@@ -190,7 +190,7 @@ abstract class AbstractRepository extends Collection
     public function delete($part): ExtendedPromiseInterface
     {
         if (! ($part instanceof Part)) {
-            $part = $this->factory->part($this->class, ['id' => $part], true);
+            $part = $this->factory->part($this->class, [$this->discrim => $part], true);
         }
 
         if (! $part->created) {
@@ -260,15 +260,15 @@ abstract class AbstractRepository extends Collection
     /**
      * Force gets a part from the Discord servers.
      *
-     * @param string $id The ID to search for.
-     * @param bool $fresh Whether we should skip checking the cache.
+     * @param string $id    The ID to search for.
+     * @param bool   $fresh Whether we should skip checking the cache.
      *
      * @return ExtendedPromiseInterface
      * @throws \Exception
      */
     public function fetch(string $id, bool $fresh = false): ExtendedPromiseInterface
     {
-        if (! $fresh && $part = $this->get('id', $id)) {
+        if (! $fresh && $part = $this->get($this->discrim, $id)) {
             return Resolve($part);
         }
 

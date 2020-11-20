@@ -22,7 +22,31 @@ class MessageReactionRemove extends Event
      */
     public function handle(Deferred &$deferred, $data): void
     {
-        $reaction = $this->factory->create(MessageReaction::class, $data, true);
+        $reaction = new MessageReaction($this->discord, (array) $data, true);
+
+        if ($channel = $reaction->channel) {
+            if ($message = $channel->messages->offsetGet($reaction->message_id)) {
+                $reactions = [];
+                $rawReactions = $message->getRawAttributes()['reactions'] ?? [];
+
+                foreach ($rawReactions as $react) {
+                    if ($react['emoji']['name'] == $reaction->emoji->name) {
+                        --$react['count'];
+
+                        if ($reaction->user_id == $this->discord->id) {
+                            $react['me'] = false;
+                        }
+                    }
+
+                    if ($react['count'] > 0) {
+                        $reactions[] = $react;
+                    }
+                }
+
+                $message->reactions = $reactions;
+            }
+        }
+
         $deferred->resolve($reaction);
     }
 }
