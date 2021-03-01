@@ -29,6 +29,7 @@ use React\Dns\Resolver\Factory as DNSFactory;
 use React\EventLoop\LoopInterface;
 use Discord\Helpers\Deferred;
 use Exception;
+use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use React\ChildProcess\Process;
 use React\Promise\ExtendedPromiseInterface;
@@ -37,6 +38,8 @@ use React\EventLoop\TimerInterface;
 use React\Stream\ReadableResourceStream;
 use React\Stream\ReadableStreamInterface;
 use RuntimeException;
+
+use function React\Promise\resolve;
 
 /**
  * The Discord voice client.
@@ -837,6 +840,83 @@ class VoiceClient extends EventEmitter
         });
 
         return $deferred->promise();
+    }
+
+    public function playRawStreamWithOpusPhp($stream)
+    {
+        if (! function_exists('\\opus_version')) {
+            throw new RuntimeException('opus-php is not installed. Visit https://github.com/davidcole1340/opus-php for guides on how to install.');
+        }
+
+        if (is_resource($stream)) {
+            $stream = new ReadableResourceStream($stream, $this->loop);
+        }
+
+        if (! ($stream instanceof ReadableStreamInterface)) {
+            throw new InvalidArgumentException('Stream passed was not an instance of a resource or ReadableStreamInterface.');
+        }
+
+        $buffer = new RealBuffer($this->loop);
+        $stream->on('data', function ($d) use ($buffer) {
+            $buffer->write($d); 
+        });
+
+        $encoder = new \OpusEncoder(48000, 2, OPUS_APPLICATION_AUDIO);
+        $encoder->setBitrate($this->bitrate);
+
+        echo "created encoder\n";
+        $pcm = [];
+
+        /**
+         * Reads int16 values from the buffer and inserts
+         * them into an array.
+         * 
+         * @return ExtendedPromiseInterface<int[]>
+         */
+        $readPcm = function () use ($buffer, &$pcm, &$readPcm) {
+            return $buffer->readInt16()->then(function ($byte) use (&$pcm, &$readPcm) {
+                $pcm[] = $byte;
+                if (count($pcm) >= 1920) {
+                    return resolve($pcm);
+                }
+                
+                return $readPcm();
+            });
+        };
+
+        $processPcm = function () use ($readPcm, $encoder, &$pcm, &$processPcm){
+            $pcm = [];
+            $readPcm()->then(function () use (&$pcm, $encoder, &$processPcm) {
+                $opus = $encoder->encode($pcm, 960);
+                $encoded = pack('C*', ...$opus);
+                dd($pcm, $opus);
+
+                $this->sendBuffer($encoded);
+
+                // increment sequence
+                // uint16 overflow protection
+                if (++$this->seq >= 2 ** 16) {
+                    $this->seq = 0;
+                }
+
+                // increment timestamp
+                // uint32 overflow protection
+                if (($this->timestamp += ($this->frameSize * 48)) >= 2 ** 32) {
+                    $this->timestamp = 0;
+                }
+
+                $this->loop->addTimer($this->frameSize / 1000, function () use (&$pcm, &$processPcm) {
+                    $pcm = [];
+                    $processPcm();
+                });
+            })
+            ->done(null, function (\Throwable $e) {
+                echo $e->getMessage().PHP_EOL.$e->getTraceAsString().PHP_EOL;
+            });
+        };
+
+        $this->setSpeaking(true);
+        $this->loop->addTimer(0.1, $processPcm);
     }
 
     /**
